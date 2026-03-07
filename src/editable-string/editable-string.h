@@ -4,7 +4,7 @@
 #include <ostream>
 #include <string>
 
-using std::string, std::ostream;
+using namespace std;
 
 template <typename T> class EditableString {
 public:
@@ -20,6 +20,7 @@ public:
   // Conversions
   virtual T *ToArr() = 0;
   virtual string ToString() = 0;
+  virtual string ToDebug() = 0;
 
   virtual ~EditableString() = default;
 };

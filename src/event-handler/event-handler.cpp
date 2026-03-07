@@ -3,13 +3,14 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 
-EventHandler::EventHandler(Display *dpy) : key_event_handler(dpy) {}
+EventHandler::EventHandler(Display *dpy, Window win)
+    : key_event_handler(dpy, win) {}
 
-int EventHandler::HandleEvent(XEvent event, void (*InsertFn)(char)) {
+int EventHandler::HandleEvent(XEvent event) {
   switch (event.type) {
   case KeyPress:
   case KeyRelease:
-    key_event_handler.HandleEvent(event.xkey, InsertFn);
+    key_event_handler.HandleEvent(event.xkey);
     break;
   }
 

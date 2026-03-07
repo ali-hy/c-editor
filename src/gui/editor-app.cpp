@@ -1,5 +1,7 @@
-#include "./Window.h"
-#include "../editable-string/gap-buffer.cpp"
+#include "./editor-app.h"
+#include "../editable-string/gap-buffer.h"
+#include "../event-handler/event-handler.h"
+#include "text-input/text-input.h"
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <X11/X.h>
@@ -13,7 +15,7 @@ EditorApp::EditorApp() {
   att = new GLint[]{GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
 
   dpy = XOpenDisplay(NULL); // Display on same computer
-  event_handler = new EventHandler(dpy);
+  scr = DefaultScreen(dpy);
 
   if (dpy == NULL) {
     printf("\n\tcannot connect to X server\n\n");
@@ -37,15 +39,23 @@ EditorApp::EditorApp() {
   swa.colormap = cmap;
   swa.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
 
-  win = XCreateWindow(dpy, root, 0, 0, 600, 600, 0, vi->depth, InputOutput,
+  win = XCreateWindow(dpy, root, 0, 0, 800, 600, 0, vi->depth, InputOutput,
                       vi->visual, CWColormap | CWEventMask, &swa);
+
+  gc = XCreateGC(dpy, win, GCLineWidth | GCForeground | GCBackground,
+                 new XGCValues{
+                     .foreground = XWhitePixel(dpy, scr),
+                     .background = XBlackPixel(dpy, scr),
+                     .line_width = 2,
+                 });
 
   // Make window appear
   XMapWindow(dpy, win);
   XStoreName(dpy, win, "Ceditor");
 
-  // gc = XCreateGC(dpy, win, );
-  // glXMakeCurrent(dpy, win, gc);
+  XSync(dpy, False);
+
+  event_handler = new EventHandler(dpy, win);
 }
 
 EditorApp *EditorApp::GetInstance() {
@@ -57,28 +67,23 @@ EditorApp *EditorApp::GetInstance() {
 }
 
 Display *EditorApp::GetDpy() { return dpy; }
-Window *EditorApp::GetWin() { return &win; }
+Window EditorApp::GetWin() { return win; }
 XWindowAttributes *EditorApp::GetWindowAttributes() { return &gwa; }
 
 int EditorApp::StartLoop() {
   using namespace std;
-  // TextInput input = TextInput(dpy, win, gc);
   GapBuffer<char> buffer{};
-
-  // InsertFn = [&buffer](char c) { buffer.Insert(buffer.Size(), c); };
+  text_input = new TextInput(dpy, win);
 
   while (1) {
     XNextEvent(GetDpy(), &xev);
 
     if (xev.type == Expose) {
-      printf("EVENT: Expose\n");
-
-      XGetWindowAttributes(GetDpy(), *GetWin(), GetWindowAttributes());
-      // glViewport(0, 0, GetWindowAttributes()->width,
-      // GetWindowAttributes()->height);
-      // glXSwapBuffers(GetDpy(), *GetWin());
-    } else if (xev.type == KeyPress || xev.type == KeyRelease) {
-      event_handler->HandleEvent(xev, nullptr);
+      XGetWindowAttributes(GetDpy(), GetWin(), GetWindowAttributes());
+      XSync(dpy, False);
+    } else if (xev.type == ButtonPress || xev.type == ButtonRelease ||
+               xev.type == KeyPress || xev.type == KeyRelease) {
+      text_input->HandleEvent(xev);
     }
   }
 
@@ -86,8 +91,9 @@ int EditorApp::StartLoop() {
 }
 
 EditorApp::~EditorApp() {
-  glXMakeCurrent(dpy, None, NULL);
+  // glXMakeCurrent(dpy, None, NULL);
   // glXDestroyContext(dpy, gc);
+  XFreeGC(dpy, gc);
   XDestroyWindow(dpy, win);
   XCloseDisplay(dpy);
   exit(0);

@@ -7,8 +7,8 @@ class EventHandler {
   KeyEventHandler key_event_handler;
 
 public:
-  EventHandler(Display *dpy);
-  int HandleEvent(XEvent event, void (*InsertFn)(char));
+  EventHandler(Display *dpy, Window win);
+  int HandleEvent(XEvent event);
 };
 
 #endif // CEDITOR_EVENTHANDLER_H_

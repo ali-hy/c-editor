@@ -1,7 +1,8 @@
-#ifndef CEDITOR_EDITORWINDOW_H_
-#define CEDITOR_EDITORWINDOW_H_
+#ifndef CEDITOR_EDITORAPP_H_
+#define CEDITOR_EDITORAPP_H_
 
 #include "../event-handler/event-handler.h"
+#include "./text-input/text-input.h"
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <X11/X.h>
@@ -11,6 +12,7 @@
 class EditorApp {
 private:
   Display *dpy;
+  int scr;
   Window root;
   GLint *att;
   XVisualInfo *vi;
@@ -30,9 +32,12 @@ public:
   // Base
   static EditorApp *GetInstance();
   Display *GetDpy();
-  Window *GetWin();
+  Window GetWin();
   XWindowAttributes *GetWindowAttributes();
   ~EditorApp();
+
+  // Elements
+  TextInput *text_input;
 
   // Behavior
   int StartLoop();
@@ -41,4 +46,4 @@ public:
   EditorApp(EditorApp &other) = delete;
   void operator=(const EditorApp &) = delete;
 };
-#endif // CEDITOR_EDITORWINDOW_H_
+#endif // CEDITOR_EDITORAPP_H_

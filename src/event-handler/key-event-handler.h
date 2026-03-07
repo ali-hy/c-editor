@@ -9,10 +9,11 @@ class KeyEventHandler {
   int min_keycode, max_keycode, keysym_per_keycode;
 
   Display *dpy;
+  Window win;
 
 public:
-  KeyEventHandler(Display *dpy);
-  int HandleEvent(XKeyEvent event, void (*InsertFn)(char));
+  KeyEventHandler(Display *dpy, Window win);
+  int HandleEvent(XKeyEvent event);
 };
 
 #endif // !CEDITOR_KEYEVENTHANDLER_H_
