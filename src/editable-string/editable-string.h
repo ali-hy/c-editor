@@ -10,7 +10,7 @@ template <typename T> class EditableString {
 public:
   // Getters
   virtual int Size() = 0;
-  virtual T CharAt(int position) = 0;
+  virtual T At(int position) = 0;
 
   // Modifiers
   virtual void Insert(int index, T character) = 0;
@@ -19,6 +19,7 @@ public:
 
   // Conversions
   virtual T *ToArr() = 0;
+  virtual T *ToSubArr(int start, int size) = 0;
   virtual string ToString() = 0;
   virtual string ToDebug() = 0;
 

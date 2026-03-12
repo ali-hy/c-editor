@@ -12,5 +12,8 @@ int main(int argc, char *argv[]) {
   // Initialize initialize window
   EditorApp *editor = EditorApp::GetInstance();
 
-  return editor->StartLoop();
+  int exit_code = editor->StartLoop();
+
+  delete editor;
+  return exit_code;
 }

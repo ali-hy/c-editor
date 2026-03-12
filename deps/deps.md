@@ -1,0 +1,3 @@
+- Xlib - X Window System for creating window
+- opengl - To render/draw graphics in the window
+- freetype2 - Loading glyph textures from truetype fonts

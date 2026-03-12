@@ -20,6 +20,7 @@ private:
   XSetWindowAttributes swa;
   Window win;
   GC gc;
+  XGCValues *gcv;
   XWindowAttributes gwa;
   EventHandler *event_handler;
 

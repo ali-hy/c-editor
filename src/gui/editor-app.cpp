@@ -2,12 +2,14 @@
 #include "../editable-string/gap-buffer.h"
 #include "../event-handler/event-handler.h"
 #include "text-input/text-input.h"
+
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <cstdio>
 #include <ft2build.h>
+#include <iostream>
 
 EditorApp *EditorApp::_instance = nullptr;
 
@@ -41,13 +43,18 @@ EditorApp::EditorApp() {
 
   win = XCreateWindow(dpy, root, 0, 0, 800, 600, 0, vi->depth, InputOutput,
                       vi->visual, CWColormap | CWEventMask, &swa);
+  XSetWindowBackground(dpy, win, XBlackPixel(dpy, scr));
 
-  gc = XCreateGC(dpy, win, GCLineWidth | GCForeground | GCBackground,
-                 new XGCValues{
-                     .foreground = XWhitePixel(dpy, scr),
-                     .background = XBlackPixel(dpy, scr),
-                     .line_width = 2,
-                 });
+  std::cout << "black equals NONE = " << (XBlackPixel(dpy, scr) == None)
+            << endl;
+
+  gcv = new XGCValues{
+      .foreground = XWhitePixel(dpy, scr),
+      .background = XBlackPixel(dpy, scr),
+      .line_width = 2,
+  };
+
+  gc = XCreateGC(dpy, win, GCLineWidth | GCForeground | GCBackground, gcv);
 
   // Make window appear
   XMapWindow(dpy, win);
@@ -96,5 +103,10 @@ EditorApp::~EditorApp() {
   XFreeGC(dpy, gc);
   XDestroyWindow(dpy, win);
   XCloseDisplay(dpy);
+
+  delete text_input;
+  delete event_handler;
+  delete gcv;
+  delete[] att;
   exit(0);
 }

@@ -118,18 +118,19 @@ public:
 
   // EditableString methods
   int Size() override;
-  T CharAt(int position) override;
+  T At(int position) override;
 
   void Insert(int position, T c) override;
   void Del(int position) override;
   void Clear() override;
 
   T *ToArr() override;
+  T *ToSubArr(int start, int size) override;
   string ToString() override;
   string ToDebug() override;
 
-  Iterator &begin();
-  Iterator &end();
+  Iterator begin();
+  Iterator end();
 };
 
 template <typename T> GapBuffer<T>::GapBuffer() { Init(256); }
@@ -195,7 +196,7 @@ template <typename T> void GapBuffer<T>::Insert(int position, T c) {
   gap_start++;
 }
 
-template <typename T> T GapBuffer<T>::CharAt(int position) {
+template <typename T> T GapBuffer<T>::At(int position) {
   if (position < gap_start)
     return buffer[position];
 
@@ -246,6 +247,29 @@ template <typename T> T *GapBuffer<T>::ToArr() {
   return arr;
 }
 
+template <typename T> T *GapBuffer<T>::ToSubArr(int start, int size) {
+  if (start < 0 || start > Size() || size > Size() - start) {
+    throw out_of_range("Cannot create sub array from subarray starting at " +
+                       to_string(start) + "of size " + to_string(size));
+  }
+
+  T *arr = new T[size + 1];
+  int i, end = start + size;
+
+  for (i = start; i < gap_start && i < end; i++) {
+    arr[i - start] = buffer[i];
+  }
+
+  end = end - gap_start + gap_end;
+  for (i = gap_end; i < end && i < capacity; i++) {
+    arr[i + gap_start - gap_end - start] = buffer[i];
+  }
+
+  arr[size] = 0;
+
+  return arr;
+}
+
 template <typename T> string GapBuffer<T>::ToDebug() {
   using namespace std;
   stringstream stream{};
@@ -283,12 +307,12 @@ template <typename T> void GapBuffer<T>::EnsureCapacity(int new_capacity) {
   capacity = new_capacity;
 }
 
-template <typename T> typename GapBuffer<T>::Iterator &GapBuffer<T>::begin() {
-  return *(new Iterator(this));
+template <typename T> typename GapBuffer<T>::Iterator GapBuffer<T>::begin() {
+  return Iterator(this);
 }
 
-template <typename T> typename GapBuffer<T>::Iterator &GapBuffer<T>::end() {
-  return *(new Iterator(this, this->Size()));
+template <typename T> typename GapBuffer<T>::Iterator GapBuffer<T>::end() {
+  return Iterator(this, this->Size());
 }
 
 #endif // CEDITOR_GAPBUFFER_H_

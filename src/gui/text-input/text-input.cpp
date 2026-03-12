@@ -6,6 +6,8 @@
 #include <X11/keysym.h>
 #include <algorithm>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 TextInput::TextInput(Display *dpy, Window win) {
   Init(dpy, win, new GapBuffer<char>());
@@ -15,8 +17,6 @@ TextInput::TextInput(Display *dpy, Window win, TextInput::buffer_type *buffer) {
   Init(dpy, win, buffer);
 }
 
-TextInput::~TextInput() { delete buffer; }
-
 void TextInput::Init(Display *dpy, Window win, TextInput::buffer_type *buffer) {
   this->dpy = dpy;
   this->win = win;
@@ -24,12 +24,32 @@ void TextInput::Init(Display *dpy, Window win, TextInput::buffer_type *buffer) {
 
   InitFont();
   int scr = XDefaultScreen(dpy);
-  this->gc =
+
+  this->gcv = new XGCValues{.foreground = XWhitePixel(dpy, scr),
+                            .background = XBlackPixel(dpy, scr),
+                            .line_width = 2,
+                            .font = this->font_info->fid};
+
+  this->gc = XCreateGC(dpy, win,
+                       GCLineWidth | GCForeground | GCBackground | GCFont, gcv);
+
+  this->inverse_gvc = new XGCValues{.foreground = XBlackPixel(dpy, scr),
+                                    .background = XWhitePixel(dpy, scr),
+                                    .line_width = 2,
+                                    .font = this->font_info->fid};
+
+  this->inverse_gc =
       XCreateGC(dpy, win, GCLineWidth | GCForeground | GCBackground | GCFont,
-                new XGCValues{.foreground = XWhitePixel(dpy, scr),
-                              .background = XBlackPixel(dpy, scr),
-                              .line_width = 2,
-                              .font = this->font_info->fid});
+                inverse_gvc);
+}
+
+TextInput::~TextInput() {
+  XFreeGC(dpy, gc);
+  XFreeGC(dpy, inverse_gc);
+
+  delete buffer;
+  delete gcv;
+  delete inverse_gvc;
 }
 
 void TextInput::InitFont() {
@@ -42,32 +62,89 @@ void TextInput::InitFont() {
   }
 
   this->font_info = XLoadQueryFont(dpy, font_names[0]);
-  cout << "Selected font: " << font_names[0];
+  cout << "Selected font: " << font_names[0] << endl;
 }
 
-int TextInput::GetDrawnStringWidth(char *str, int length) {
+int TextInput::GetDrawnTextWidth(char *str, int length) {
   return XTextWidth(this->font_info, str, length);
 }
 
-void TextInput::Draw(int start_pos) {
+void TextInput::DrawAll(int start_pos = 0) {
   using namespace std;
+  if (start_pos > buffer->Size())
+    throw out_of_range(to_string(start_pos) + " is out of range(" +
+                       to_string(buffer->Size()) + ")");
+
   cout << buffer->ToString() << '\n' << buffer->ToDebug() << endl;
 
   char *str = buffer->ToArr();
-  int line = 0, line_start = 0;
-  for (int i = 0; i < buffer->Size(); i++) {
+  int i;
+  LineInfo line = LineFromPos(start_pos);
+
+  XClearArea(dpy, win, x, y + (line.num * line_height), width, height, False);
+
+  // Draw each line
+  for (; i < buffer->Size(); i++) {
     if (str[i] == '\n') {
-      XDrawImageString(dpy, win, gc, x, y + (line * 20), str + line_start,
-                       i - line_start);
+      DrawText(0, line.num * line_height, str + line.head, i - line.head);
+      line.num++;
+      line.head = i + 1;
+    }
+  }
+
+  // Handle last line (doesn't end with '\n')
+  if (line.head != buffer->Size()) {
+    DrawText(0, line.num * line_height, str + line.head,
+             buffer->Size() - line.head);
+  }
+
+  delete[] str;
+}
+
+void TextInput::RedrawAt(int pos) {
+  cout << "cursor at: " << cursor_pos << '\n';
+  cout << buffer->ToDebug();
+
+  LineInfo line = LineFromPos(pos);
+  int col = pos - line.head;
+  char *line_str = buffer->ToSubArr(line.head, line.tail - line.head);
+  int prefix_width = GetDrawnTextWidth(line_str, pos - line.head);
+
+  XClearArea(dpy, win, x + prefix_width, y + line.num * line_height,
+             width - prefix_width, line_height, False);
+
+  if (line.tail - pos > 0)
+    DrawText(prefix_width, line.num * line_height, line_str + col,
+             line.tail - pos);
+
+  delete[] line_str;
+}
+
+void TextInput::DrawText(int x, int y, char *str, unsigned int length) {
+  XDrawImageString(dpy, win, gc, this->x + x, this->y + font_height + y, str,
+                   length);
+}
+
+void TextInput::IndexLines(int start_pos = 0) {}
+
+LineInfo TextInput::LineFromPos(int pos) {
+  if (pos > buffer->Size() || pos < 0)
+    throw out_of_range(to_string(pos) + " is out of range(" +
+                       to_string(buffer->Size()) + ")");
+
+  int line = 0, line_start = 0, col = 0, prefix_width;
+
+  for (int i = 0; i < pos; i++) {
+    if (buffer->At(i) == '\n') {
       line++;
       line_start = i + 1;
     }
   }
 
-  if (line_start != buffer->Size()) {
-    XDrawImageString(dpy, win, gc, x, y + (line * 20), str + line_start,
-                     buffer->Size() - line_start);
+  for (; pos < buffer->Size() && buffer->At(pos) != '\n'; pos++) {
   }
+
+  return {.num = line, .head = line_start, .tail = pos};
 }
 
 void TextInput::HandleEvent(XEvent event) {
@@ -96,12 +173,14 @@ void TextInput::HandleKeyEvent(XKeyEvent event) {
       XkbKeycodeToKeysym(dpy, event.keycode, 0, event.state & ShiftMask);
 
   char to_insert = 0;
+  int redraw_pos = -1;
 
   switch (keysym) {
   case XK_BackSpace:
     if (cursor_pos > 0) {
       --cursor_pos;
       buffer->Del(cursor_pos);
+      redraw_pos = cursor_pos;
     }
     break;
 
@@ -117,8 +196,10 @@ void TextInput::HandleKeyEvent(XKeyEvent event) {
     break;
 
   case XK_Return:
-    line_num++;
+    cursor_line.num++;
+    cursor_line.head += 2;
     to_insert = '\n';
+    redraw_pos = cursor_pos + 1;
     break;
 
   case XK_Control_R:
@@ -138,19 +219,17 @@ void TextInput::HandleKeyEvent(XKeyEvent event) {
 
   default:
     to_insert = (char)keysym;
+    redraw_pos = cursor_pos;
   }
 
-  if (is_alt_pressed || is_ctrl_pressed) {
-    return;
-  }
-
-  if (to_insert != 0) {
+  if (to_insert != '\0') {
     buffer->Insert(cursor_pos, to_insert);
     cursor_pos++;
   }
 
-  cout << key_event_count << ": ";
-  Draw(cursor_pos);
+  if (redraw_pos >= 0) {
+    DrawAll(redraw_pos);
+  }
 }
 
 void TextInput::HandleButtonEvent(XButtonEvent event) {}
